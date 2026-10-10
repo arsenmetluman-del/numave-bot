@@ -1,7 +1,7 @@
 const TelegramBot = require('node-telegram-bot-api');
 
-const TOKEN = '8546026847:AAH_pznjiozig_HCvS7pgiOKz8EZD1XL0to';
-const GAME_URL = 'https://numb123.vercel.app';
+const TOKEN = '8546026847:AAFCt8NGAVYn2XVtPOsxiXiDacVklqJFQGk';
+const GAME_URL = 'https://numb123-38hs.vercel.app';
 
 const bot = new TelegramBot(TOKEN);
 
