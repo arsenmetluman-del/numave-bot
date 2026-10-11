@@ -1,7 +1,7 @@
 const TelegramBot = require('node-telegram-bot-api');
 
-// ⚠️ ТОКЕН
-const TOKEN = process.env.TELEGRAM_TOKEN || '8546026847:AAFCt8NGAVYn2XVtPOsxiXiDacVklqJFQGk';
+// ⚠️ ТОКЕН — вставь свой из @BotFather
+const TOKEN = '8546026847:AAFCt8NGAVYn2XVtPOsxiXiDacVklqJFQGk';
 const GAME_URL = 'https://numb123.vercel.app';
 const API_BASE = 'https://numb123.vercel.app';
 
@@ -11,7 +11,7 @@ module.exports = async (req, res) => {
     try {
         if (req.method === 'GET') {
             const host = req.headers.host;
-            const webhookUrl = `https://${host}/api/webhook`;
+            const webhookUrl = 'https://' + host + '/api/webhook';
             await bot.setWebHook(webhookUrl);
             return res.status(200).send('✅ NumAve Bot работает. Webhook: ' + webhookUrl);
         }
@@ -24,7 +24,6 @@ module.exports = async (req, res) => {
                 const firstName = update.message.from.first_name || 'друг';
                 const userId = 'tg_' + update.message.from.id;
 
-                // === ОБРАБОТКА РЕФЕРАЛКИ ===
                 const text = update.message.text;
                 const parts = text.split(' ');
                 let refBonusMsg = '';
@@ -32,18 +31,14 @@ module.exports = async (req, res) => {
                 if (parts.length > 1 && parts[1].startsWith('ref_')) {
                     const referrerId = parts[1].replace('ref_', '');
 
-                    // Проверяем: не сам себя пригласил?
                     if (referrerId !== userId) {
                         try {
-                            // Проверяем — новый ли это игрок (есть ли в базе)
                             const checkUser = await fetch(API_BASE + '/api/user?userId=' + userId);
                             const userData = await checkUser.json();
 
-                            // Если игрок уже существовал (total_spins > 0 или balance != 49) — не даём бонус
                             const isNewUser = !userData || userData.total_spins === 0;
 
                             if (isNewUser) {
-                                // +20 другу (новому игроку)
                                 await fetch(API_BASE + '/api/user', {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
@@ -53,7 +48,6 @@ module.exports = async (req, res) => {
                                     })
                                 });
 
-                                // +20 рефереру (тому кто пригласил)
                                 const refUserRes = await fetch(API_BASE + '/api/user?userId=' + referrerId);
                                 const refUser = await refUserRes.json();
                                 if (refUser && !refUser.error) {
@@ -73,7 +67,6 @@ module.exports = async (req, res) => {
                             }
                         } catch (e) {
                             console.error('Ref error:', e);
-                            refBonusMsg = '';
                         }
                     }
                 }
