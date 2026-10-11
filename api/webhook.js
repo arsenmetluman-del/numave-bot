@@ -1,7 +1,9 @@
 const TelegramBot = require('node-telegram-bot-api');
 
-const TOKEN = '8546026847:AAFCt8NGAVYn2XVtPOsxiXiDacVklqJFQGk';
+// ⚠️ ТОКЕН
+const TOKEN = process.env.TELEGRAM_TOKEN || '8546026847:AAFCt8NGAVYn2XVtPOsxiXiDacVklqJFQGk';
 const GAME_URL = 'https://numb123.vercel.app';
+const API_BASE = 'https://numb123.vercel.app';
 
 const bot = new TelegramBot(TOKEN);
 
@@ -17,13 +19,68 @@ module.exports = async (req, res) => {
         if (req.method === 'POST') {
             const update = req.body;
 
-            if (update.message && update.message.text === '/start') {
+            if (update.message && update.message.text && update.message.text.startsWith('/start')) {
                 const chatId = update.message.chat.id;
                 const firstName = update.message.from.first_name || 'друг';
+                const userId = 'tg_' + update.message.from.id;
 
-                const text = '👋 Добро пожаловать в NumAve, ' + firstName + '!\n\n' +
-                    '🎲 Крутите номера, собирайте редкие,\n' +
-                    '💎 обменивайте на Namcoin.\n\n' +
+                // === ОБРАБОТКА РЕФЕРАЛКИ ===
+                const text = update.message.text;
+                const parts = text.split(' ');
+                let refBonusMsg = '';
+
+                if (parts.length > 1 && parts[1].startsWith('ref_')) {
+                    const referrerId = parts[1].replace('ref_', '');
+
+                    // Проверяем: не сам себя пригласил?
+                    if (referrerId !== userId) {
+                        try {
+                            // Проверяем — новый ли это игрок (есть ли в базе)
+                            const checkUser = await fetch(API_BASE + '/api/user?userId=' + userId);
+                            const userData = await checkUser.json();
+
+                            // Если игрок уже существовал (total_spins > 0 или balance != 49) — не даём бонус
+                            const isNewUser = !userData || userData.total_spins === 0;
+
+                            if (isNewUser) {
+                                // +20 другу (новому игроку)
+                                await fetch(API_BASE + '/api/user', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        userId: userId,
+                                        balance: (userData.balance || 49) + 20
+                                    })
+                                });
+
+                                // +20 рефереру (тому кто пригласил)
+                                const refUserRes = await fetch(API_BASE + '/api/user?userId=' + referrerId);
+                                const refUser = await refUserRes.json();
+                                if (refUser && !refUser.error) {
+                                    await fetch(API_BASE + '/api/user', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            userId: referrerId,
+                                            balance: (refUser.balance || 49) + 20
+                                        })
+                                    });
+                                }
+
+                                refBonusMsg = '\n\n🎁 Вы пришли по приглашению!\n💎 +20 Namcoin вам и пригласившему!';
+                            } else {
+                                refBonusMsg = '\n\n👋 Рады видеть снова!';
+                            }
+                        } catch (e) {
+                            console.error('Ref error:', e);
+                            refBonusMsg = '';
+                        }
+                    }
+                }
+
+                const message = '👋 Добро пожаловать в NumAve, ' + firstName + '!\n\n' +
+                    '📱 Крутите номера, собирайте редкие,\n' +
+                    '💎 обменивайте на Namcoin.' + refBonusMsg + '\n\n' +
                     '👇 Нажми кнопку чтобы начать играть';
 
                 const keyboard = {
@@ -32,15 +89,15 @@ module.exports = async (req, res) => {
                     ]
                 };
 
-                await bot.sendMessage(chatId, text, { reply_markup: keyboard });
+                await bot.sendMessage(chatId, message, { reply_markup: keyboard });
             }
 
             return res.status(200).send('OK');
         }
 
-        res.status(405).send('Method not allowed');
+        return res.status(200).send('OK');
     } catch (error) {
-        console.log('Ошибка:', error.message);
-        res.status(200).send('OK');
+        console.error('Error:', error);
+        return res.status(200).send('OK');
     }
 };
