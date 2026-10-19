@@ -1,10 +1,11 @@
 const TelegramBot = require('node-telegram-bot-api');
 
-// ⚠️ ТОКЕН — твой из @BotFather
 const TOKEN = '8546026847:AAHpj-UM-8fSHkoEP6vN4tlMvqqterNl8f0';
 const GAME_URL = 'https://numb123.vercel.app';
 const API_BASE = 'https://numb123.vercel.app';
-const ADMIN_ID = '5775905262'; // Твой ID для поддержки
+
+// Твой ID (только для пересылки, игроки его не видят)
+const ADMIN_ID = 5775905262; 
 
 const bot = new TelegramBot(TOKEN);
 
@@ -20,7 +21,7 @@ module.exports = async (req, res) => {
         if (req.method === 'POST') {
             const update = req.body;
 
-            // ===== ОБРАБОТКА ОПЛАТЫ STARS =====
+            // 1. ОПЛАТА STARS
             if (update.message && update.message.successful_payment) {
                 const payment = update.message.successful_payment;
                 const userId = 'tg_' + update.message.from.id;
@@ -36,102 +37,65 @@ module.exports = async (req, res) => {
                     });
                     
                     await bot.sendMessage(update.message.chat.id, '✅ Оплата получена! +200 NC зачислено на ваш баланс.');
-                    await bot.sendMessage(ADMIN_ID, '💰 Новая оплата!\nИгрок: ' + userId + '\nСумма: ' + payment.total_amount + ' Stars');
+                    await bot.sendMessage(ADMIN_ID, '💰 Новая оплата от ID: ' + userId + ' на ' + payment.total_amount + ' Stars.');
                 } catch (e) {
                     console.error('Payment error:', e);
                 }
                 return res.status(200).send('OK');
             }
 
-            // ===== КОМАНДА /START =====
-            if (update.message && update.message.text && update.message.text.startsWith('/start')) {
-                const chatId = update.message.chat.id;
-                const firstName = update.message.from.first_name || 'друг';
-                const userId = 'tg_' + update.message.from.id;
-
-                const text = update.message.text;
-                const parts = text.split(' ');
-                let refBonusMsg = '';
-
-                if (parts.length > 1 && parts[1].startsWith('ref_')) {
-                    const referrerId = parts[1].replace('ref_', '');
-
-                    if (referrerId !== userId) {
+            // 2. ОТВЕТ ИГРОКУ (когда ты делаешь реплай на сообщение бота)
+            if (update.message && update.message.reply_to_message && update.message.from.id === ADMIN_ID) {
+                const originalMessage = update.message.reply_to_message.text;
+                if (originalMessage && originalMessage.includes('ID:')) {
+                    const match = originalMessage.match(/ID:\s*(\d+)/);
+                    if (match && match[1]) {
+                        const targetUserId = match[1];
                         try {
-                            const checkUser = await fetch(API_BASE + '/api/user?userId=' + userId);
-                            const userData = await checkUser.json();
-
-                            const isNewUser = !userData || userData.total_spins === 0;
-
-                            if (isNewUser) {
-                                await fetch(API_BASE + '/api/user', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                        userId: userId,
-                                        balance: (userData.balance || 0) + 20
-                                    })
-                                });
-
-                                const refUserRes = await fetch(API_BASE + '/api/user?userId=' + referrerId);
-                                const refUser = await refUserRes.json();
-                                if (refUser && !refUser.error) {
-                                    await fetch(API_BASE + '/api/user', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({
-                                            userId: referrerId,
-                                            balance: (refUser.balance || 0) + 20
-                                        })
-                                    });
-                                }
-
-                                refBonusMsg = '\n\n🎁 Вы пришли по приглашению!\n💎 +20 Namcoin вам и пригласившему!';
-                            } else {
-                                refBonusMsg = '\n\n👋 Рады видеть снова!';
-                            }
+                            await bot.sendMessage(targetUserId, '💬 Ответ поддержки:\n\n' + update.message.text);
+                            await bot.sendMessage(ADMIN_ID, '✅ Ответ отправлен игроку ' + targetUserId);
                         } catch (e) {
-                            console.error('Ref error:', e);
+                            await bot.sendMessage(ADMIN_ID, '❌ Ошибка: игрок заблокировал бота.');
                         }
                     }
                 }
+                return res.status(200).send('OK');
+            }
 
-                const message = '👋 Добро пожаловать в NumAve, ' + firstName + '!\n\n' +
-                    '📱 Крутите номера, собирайте редкие,\n' +
-                    '💎 обменивайте на Namcoin.' + refBonusMsg + '\n\n' +
-                    '👇 Нажми кнопку чтобы начать играть';
-
+            // 3. КОМАНДА /START И КНОПКИ ПОД НЕЙ
+            if (update.message && update.message.text && update.message.text.startsWith('/start')) {
+                const chatId = update.message.chat.id;
+                const firstName = update.message.from.first_name || 'друг';
+                
+                // Вот здесь создаются ДВЕ кнопки
                 const keyboard = {
                     inline_keyboard: [
-                        [{ text: '🎮 Играть', web_app: { url: GAME_URL } }]
+                        [{ text: '🎮 Играть', web_app: { url: GAME_URL } }],
+                        [{ text: '🆘 Поддержка', callback_data: 'support' }]
                     ]
                 };
 
-                await bot.sendMessage(chatId, message, { reply_markup: keyboard });
+                await bot.sendMessage(chatId, '👋 Добро пожаловать в NumAve, ' + firstName + '!\n\n👇 Нажми кнопку чтобы начать или обратись в поддержку.', { reply_markup: keyboard });
                 return res.status(200).send('OK');
             }
 
-            // ===== КОМАНДА /HELP (ПОДДЕРЖКА) =====
-            if (update.message && update.message.text === '/help') {
-                const chatId = update.message.chat.id;
-                await bot.sendMessage(chatId, '🆘 Поддержка NumAve\n\nНапишите ваш вопрос прямо сюда, и мы ответим вам в этом чате.\n\nПожалуйста, опишите проблему подробно: что вы делали, что пошло не так, приложите скриншот, если возможно.');
+            // 4. НАЖАТИЕ НА КНОПКУ "ПОДДЕРЖКА"
+            if (update.callback_query && update.callback_query.data === 'support') {
+                await bot.answerCallbackQuery(update.callback_query.id);
+                await bot.sendMessage(update.callback_query.message.chat.id, '🆘 Напишите ваш вопрос прямо сюда одним сообщением. Мы ответим вам в этом чате.');
                 return res.status(200).send('OK');
             }
 
-            // ===== ПЕРЕСЫЛКА СООБЩЕНИЙ В ПОДДЕРЖКУ =====
-            if (update.message && update.message.text && !update.message.text.startsWith('/')) {
+            // 5. ПЕРЕСЫЛКА СООБЩЕНИЙ ТЕБЕ
+            if (update.message && update.message.text && update.message.from.id !== ADMIN_ID) {
                 const user = update.message.from;
-                const userName = user.first_name || user.username || 'Игрок';
+                const userName = user.first_name || 'Игрок';
                 const userId = user.id;
                 
                 try {
-                    await bot.sendMessage(ADMIN_ID, 
-                        '📩 Сообщение в поддержку:\n\n' +
-                        '👤 От: ' + userName + ' (@' + (user.username || 'нет') + ')\n' +
-                        '🆔 ID: ' + userId + '\n\n' +
-                        '💬 ' + update.message.text
-                    );
-                    await bot.sendMessage(update.message.chat.id, '✅ Сообщение отправлено в поддержку. Мы ответим вам здесь.');
+                    const adminText = '📩 Сообщение от: ' + userName + '\nID: ' + userId + '\n\n' + update.message.text + '\n\n👇 Чтобы ответить, сделайте свайп влево на этом сообщении.';
+                    await bot.sendMessage(ADMIN_ID, adminText);
+                    await bot.sendMessage(update.message.chat.id, '✅ Сообщение отправлено в поддержку. Мы ответим здесь.');
                 } catch (e) {
                     console.error('Support error:', e);
                 }
