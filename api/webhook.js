@@ -1,98 +1,111 @@
 const TelegramBot = require('node-telegram-bot-api');
 const TOKEN = '8546026847:AAHpj-UM-8fSHkoEP6vN4tlMvqqterNl8f0';
-const GAME_URL = 'https://numb123.vercel.app';
-const API_BASE = 'https://numb123.vercel.app';
+const GAME_URL = 'https://numave-bot.vercel.app'; // ВАЖНО: сюда вставь реальный URL игры, если он другой
+const API_BASE = 'https://numave-bot.vercel.app';
 const ADMIN_ID = 5775905262;
 
-const bot = new TelegramBot(TOKEN);
+const STARS_PRICE = 50;
+const NC_REWARD = 200;
 
-// Временное хранилище тех, кто нажал "Поддержка"
+const bot = new TelegramBot(TOKEN);
 const supportUsers = new Set();
 
 module.exports = async (req, res) => {
     try {
         if (req.method === 'GET') {
-            const host = req.headers.host;
-            const webhookUrl = 'https://' + host + '/api/webhook';
-            await bot.setWebHook(webhookUrl);
+            await bot.setWebHook('https://' + req.headers.host + '/api/webhook');
             return res.status(200).send('✅ Работает');
         }
-        
+
         if (req.method === 'POST') {
             const update = req.body;
 
-            // 1. Оплата
+            // 1. ОПЛАТА ЗВЁЗДАМИ
             if (update.message && update.message.successful_payment) {
+                const payment = update.message.successful_payment;
                 const userId = 'tg_' + update.message.from.id;
-                try {
-                    const userRes = await fetch(API_BASE + '/api/user?userId=' + userId);
-                    const userData = await userRes.json();
-                    await fetch(API_BASE + '/api/user', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ userId: userId, balance: (userData.balance || 0) + 200 })
-                    });
-                    await bot.sendMessage(update.message.chat.id, '✅ Оплата получена! +200 NC.');
-                } catch (e) {}
+                const chatId = update.message.chat.id;
+
+                if (payment.currency === 'XTR' && payment.total_amount === STARS_PRICE) {
+                    try {
+                        const userRes = await fetch(API_BASE + '/api/user?userId=' + userId);
+                        const userData = await userRes.json();
+                        await fetch(API_BASE + '/api/user', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ userId: userId, balance: (userData.balance || 0) + NC_REWARD })
+                        });
+                        await bot.sendMessage(chatId, `✅ Оплата получена!\n⭐ Списано: ${STARS_PRICE} звёзд\n💰 Начислено: +${NC_REWARD} NC`);
+                    } catch (e) {}
+                }
                 return res.status(200).send('OK');
             }
 
-            // 2. Ответ админа (поддержка)
+            // 2. ОТВЕТ ПОДДЕРЖКИ
             if (update.message && update.message.reply_to_message && update.message.from.id === ADMIN_ID) {
                 const originalMessage = update.message.reply_to_message.text;
                 if (originalMessage && originalMessage.includes('ID:')) {
                     const match = originalMessage.match(/ID:\s*(\d+)/);
                     if (match && match[1]) {
-                        try { 
-                            await bot.sendMessage(match[1], '💬 Ответ поддержки:\n\n' + update.message.text); 
-                        } catch (e) {}
+                        try { await bot.sendMessage(match[1], '💬 Ответ поддержки:\n\n' + update.message.text); } catch (e) {}
                     }
                 }
                 return res.status(200).send('OK');
             }
 
-            // 3. Команда /start
+            // 3. КОМАНДА /start
             if (update.message && update.message.text && update.message.text.startsWith('/start')) {
                 const chatId = update.message.chat.id;
-                supportUsers.delete(chatId); // Сбрасываем режим поддержки
+                supportUsers.delete(chatId);
                 const keyboard = {
                     inline_keyboard: [
                         [{ text: '🎮 Играть', web_app: { url: GAME_URL } }],
+                        [{ text: `⭐ Купить ${NC_REWARD} NC за ${STARS_PRICE} звёзд`, callback_data: 'buy_nc' }],
                         [{ text: '🆘 Поддержка', callback_data: 'support' }]
                     ]
                 };
-                const startText = `👋 Добро пожаловать в игру!\n\nЗдесь ты можешь крутить барабан, собирать редкие числа и продавать их на маркете.\n👇 Нажми кнопку ниже, чтобы начать!`;
-                await bot.sendMessage(chatId, startText, { reply_markup: keyboard });
+                await bot.sendMessage(chatId, `👋 Добро пожаловать в игру!\n\nКрути барабан, собирай номера и продавай их!`, { reply_markup: keyboard });
                 return res.status(200).send('OK');
             }
 
-            // 4. Нажатие кнопки "Поддержка"
+            // 4. КУПИТЬ NC (СЧЕТ НА 50 ЗВЕЗД)
+            if (update.callback_query && update.callback_query.data === 'buy_nc') {
+                await bot.answerCallbackQuery(update.callback_query.id);
+                await bot.sendInvoice(
+                    update.callback_query.message.chat.id,
+                    `Покупка ${NC_REWARD} NamCoin`,
+                    `Пополнение на ${NC_REWARD} NC за ${STARS_PRICE} звёзд`,
+                    'buy_' + update.callback_query.message.chat.id + '_' + Date.now(),
+                    '',
+                    'XTR',
+                    [{ label: `${NC_REWARD} NC`, amount: STARS_PRICE }]
+                );
+                return res.status(200).send('OK');
+            }
+
+            // 5. ПОДДЕРЖКА
             if (update.callback_query && update.callback_query.data === 'support') {
                 const chatId = update.callback_query.message.chat.id;
-                supportUsers.add(chatId); // Включаем режим поддержки
+                supportUsers.add(chatId);
                 await bot.answerCallbackQuery(update.callback_query.id);
-                await bot.sendMessage(chatId, '🆘 Напишите ваш вопрос прямо сюда. Мы скоро ответим!');
+                await bot.sendMessage(chatId, '🆘 Напишите ваш вопрос прямо сюда.');
                 return res.status(200).send('OK');
             }
 
-            // 5. Обычные сообщения
-            if (update.message && update.message.text && update.message.from.id !== ADMIN_ID) {
+            // 6. СООБЩЕНИЯ
+            if (update.message && update.message.text && update.message.from.id !== ADMIN_ID && !update.message.successful_payment) {
                 const chatId = update.message.chat.id;
-                
-                // Если пользователь нажал "Поддержка" - отправляем админу
                 if (supportUsers.has(chatId)) {
-                    await bot.sendMessage(ADMIN_ID, '📩 Сообщение от ID: ' + chatId + '\n\n' + update.message.text + '\n\n👇 Свайп влево, чтобы ответить.');
-                    await bot.sendMessage(chatId, '✅ Отправлено в поддержку. Ожидайте ответа.');
-                    supportUsers.delete(chatId); // Выключаем режим после отправки
+                    await bot.sendMessage(ADMIN_ID, '📩 Сообщение от ID: ' + chatId + '\n\n' + update.message.text);
+                    await bot.sendMessage(chatId, '✅ Отправлено в поддержку.');
+                    supportUsers.delete(chatId);
                 } else {
-                    // Если просто пишет боту что-то не по делу
-                    await bot.sendMessage(chatId, '🤖 Я тебя не понимаю. Нажми /start, чтобы открыть меню.');
+                    await bot.sendMessage(chatId, '🤖 Нажми /start, чтобы открыть меню.');
                 }
                 return res.status(200).send('OK');
             }
             return res.status(200).send('OK');
         }
         return res.status(200).send('OK');
-    } catch (error) { 
-        return res.status(200).send('OK'); 
-    }
+    } catch (error) { return res.status(200).send('OK'); }
 };
