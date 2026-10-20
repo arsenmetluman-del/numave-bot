@@ -1,5 +1,5 @@
 const TelegramBot = require('node-telegram-bot-api');
-const TOKEN = '8546026847:AAHpj-UM-8fSHkoEP6vN4tlMvqqterNl8f0';
+const TOKEN = '8546026847:AAGAVauAlKE82oriwCY_ZD3v8mE6g3A2VRE';
 const GAME_URL = 'https://numave-bot.vercel.app'; // ВАЖНО: сюда вставь реальный URL игры, если он другой
 const API_BASE = 'https://numave-bot.vercel.app';
 const ADMIN_ID = 5775905262;
