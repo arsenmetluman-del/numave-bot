@@ -1,8 +1,8 @@
 const TelegramBot = require('node-telegram-bot-api');
-const TOKEN = '8546026847:AAGAVauAlKE82oriwCY_ZD3v8mE6g3A2VRE';
-const GAME_URL = 'https://numave-bot.vercel.app'; // ВАЖНО: сюда вставь реальный URL игры, если он другой
-const API_BASE = 'https://numave-bot.vercel.app';
-const ADMIN_ID = 5775905262;
+const TOKEN = '8546026847:AAGAVauAlKE82oriwCY_ZD3v8mE6g3A2VRE'; // Твой токен
+const GAME_URL = 'https://numave-bot.vercel.app/game.html'; // Ссылка на твою игру
+const API_BASE = 'https://numave-bot.vercel.app'; // Ссылка на твой API
+const ADMIN_ID = 5775905262; // Твой ID
 
 const STARS_PRICE = 50;
 const NC_REWARD = 200;
@@ -20,7 +20,7 @@ module.exports = async (req, res) => {
         if (req.method === 'POST') {
             const update = req.body;
 
-            // 1. ОПЛАТА ЗВЁЗДАМИ
+            // 1. АВТО-ОПЛАТА ЗВЁЗДАМИ
             if (update.message && update.message.successful_payment) {
                 const payment = update.message.successful_payment;
                 const userId = 'tg_' + update.message.from.id;
@@ -41,7 +41,7 @@ module.exports = async (req, res) => {
                 return res.status(200).send('OK');
             }
 
-            // 2. ОТВЕТ ПОДДЕРЖКИ
+            // 2. ОТВЕТ ПОДДЕРЖКИ (от админа)
             if (update.message && update.message.reply_to_message && update.message.from.id === ADMIN_ID) {
                 const originalMessage = update.message.reply_to_message.text;
                 if (originalMessage && originalMessage.includes('ID:')) {
@@ -68,7 +68,7 @@ module.exports = async (req, res) => {
                 return res.status(200).send('OK');
             }
 
-            // 4. КУПИТЬ NC (СЧЕТ НА 50 ЗВЕЗД)
+            // 4. КУПИТЬ NC (счёт на 50 звёзд)
             if (update.callback_query && update.callback_query.data === 'buy_nc') {
                 await bot.answerCallbackQuery(update.callback_query.id);
                 await bot.sendInvoice(
@@ -92,7 +92,7 @@ module.exports = async (req, res) => {
                 return res.status(200).send('OK');
             }
 
-            // 6. СООБЩЕНИЯ
+            // 6. СООБЩЕНИЯ В ПОДДЕРЖКУ
             if (update.message && update.message.text && update.message.from.id !== ADMIN_ID && !update.message.successful_payment) {
                 const chatId = update.message.chat.id;
                 if (supportUsers.has(chatId)) {
