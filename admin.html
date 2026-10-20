@@ -1,0 +1,190 @@
+============================================
+📊 ПРОСМОТР ИГРОКОВ
+============================================
+
+ПОСМОТРЕТЬ ВСЕХ ИГРОКОВ (богатые сверху)
+SELECT id, balance, spins_free, total_spins FROM users ORDER BY balance DESC;
+
+ПОСМОТРЕТЬ КОНКРЕТНОГО ИГРОКА (замени ID)
+SELECT * FROM users WHERE id = 'tg_5775905262';
+
+ТОП-10 ПО NAMCOIN
+SELECT id, balance FROM users ORDER BY balance DESC LIMIT 10;
+
+ТОП-10 ПО НОМЕРАМ (у кого больше коллекция)
+SELECT id, jsonb_array_length(inventory) as nomerov, balance FROM users ORDER BY nomerov DESC LIMIT 10;
+
+ПОСМОТРЕТЬ ИНВЕНТАРЬ ИГРОКА (замени ID)
+SELECT id, jsonb_array_length(inventory) as kolvo, inventory FROM users WHERE id = 'tg_5775905262';
+
+ВСЕ ЛОТЫ НА РЫНКЕ
+SELECT * FROM market_lots WHERE status = 'active' ORDER BY created_at DESC;
+
+ИСТОРИЯ СДЕЛОК (последние 50)
+SELECT * FROM market_history ORDER BY sold_at DESC LIMIT 50;
+
+
+============================================
+🎁 ВЫДАТЬ ИГРОКУ
+============================================
+
+ДАТЬ NC КОНКРЕТНОМУ ИГРОКУ (замени ID и число)
+UPDATE users SET balance = balance + 100 WHERE id = 'tg_5775905262';
+
+ДАТЬ NC ВСЕМ ИГРОКАМ (праздник)
+UPDATE users SET balance = balance + 50;
+
+ДАТЬ БЕСКОНЕЧНЫЕ ПРОКРУТЫ (замени ID)
+UPDATE users SET spins_free = 9999 WHERE id = 'tg_5775905262';
+
+ДАТЬ ЛЕГЕНДАРНЫЙ НОМЕР (замени номер и ID)
+UPDATE users SET inventory = inventory || '[{"number": "+7 (777) 777-77-77", "rarity": "legendary", "reason": "Подарок", "date": 1700000000000, "onMarket": false}]'::jsonb WHERE id = 'tg_5775905262';
+
+ДАТЬ ЭПИЧЕСКИЙ НОМЕР (замени номер и ID)
+UPDATE users SET inventory = inventory || '[{"number": "+7 (921) 500-50-50", "rarity": "epic", "reason": "Подарок", "date": 1700000000000, "onMarket": false}]'::jsonb WHERE id = 'tg_5775905262';
+
+ДАТЬ ВСЕМ ПО ЛЕГЕНДАРКЕ (акция)
+UPDATE users SET inventory = inventory || '[{"number": "+7 (777) 111-11-11", "rarity": "legendary", "reason": "Акция", "date": 1700000000000, "onMarket": false}]'::jsonb;
+
+
+============================================
+🚫 ЗАБАНИТЬ / ЗАБРАТЬ
+============================================
+
+ОБНУЛИТЬ ЧИТЕРА (замени ID)
+UPDATE users SET balance = 0, spins_free = 0, inventory = '[]'::jsonb WHERE id = 'tg_ЧИТЕР_ID';
+
+ЗАБРАТЬ NC У ИГРОКА (замени ID и число)
+UPDATE users SET balance = balance - 100 WHERE id = 'tg_5775905262';
+
+УДАЛИТЬ ИГРОКА ПОЛНОСТЬЮ (замени ID)
+DELETE FROM users WHERE id = 'tg_ЧИТЕР_ID';
+
+СНЯТЬ ЛОТ С РЫНКА (замени ID лота)
+UPDATE market_lots SET status = 'deleted' WHERE id = 1;
+
+СНЯТЬ ВСЕ ЛОТЫ ИГРОКА (замени ID)
+UPDATE market_lots SET status = 'deleted' WHERE seller_id = 'tg_5775905262';
+
+УДАЛИТЬ ВСЕ ЗАЯВКИ НА ОБМЕН ИГРОКА (замени ID)
+UPDATE market_trades SET status = 'rejected' WHERE from_user_id = 'tg_5775905262' OR to_user_id = 'tg_5775905262';
+
+
+============================================
+🔍 АНАЛИЗ И ЧИТЕРЫ
+============================================
+
+ПОИСК ЧИТЕРОВ (ratio > 10 = читер)
+SELECT id, balance, total_spins, ROUND(balance::numeric / NULLIF(total_spins, 0), 2) as ratio FROM users WHERE total_spins > 0 ORDER BY ratio DESC;
+
+ПОИСК ЧИТЕРОВ ПО РЕДКИМ (много лег за мало прокруток)
+SELECT id, total_spins, (SELECT COUNT(*) FROM jsonb_array_elements(inventory) as item WHERE item->>'rarity' = 'legendary') as legendary_count, ROUND((SELECT COUNT(*) FROM jsonb_array_elements(inventory) as item WHERE item->>'rarity' = 'legendary')::numeric / NULLIF(total_spins, 0), 4) as cheat_ratio FROM users WHERE total_spins > 10 ORDER BY cheat_ratio DESC;
+
+СТАТИСТИКА ИГРЫ (сколько всего)
+SELECT COUNT(*) as igrokov, SUM(balance) as vsego_nc, SUM(total_spins) as prokrutok FROM users;
+
+СКОЛЬКО ЛЕГЕНДАРОК У КОГО
+SELECT id, balance, (SELECT COUNT(*) FROM jsonb_array_elements(inventory) as item WHERE item->>'rarity' = 'legendary') as legendary_count FROM users ORDER BY legendary_count DESC;
+
+БЭКАП (сохрани результат в блокнот!)
+SELECT * FROM users;
+
+
+============================================
+⚙️ СПЕЦИАЛЬНОЕ
+============================================
+
+СБРОС ЕЖЕДНЕВНОГО БОНУСА ВСЕМ
+UPDATE users SET last_bonus_date = NULL;
+
+НАЙТИ ИГРОКА ПО ЧАСТИ ID
+SELECT id, balance FROM users WHERE id LIKE '%577590%';
+
+СПИСОК РЕФЕРАЛОВ
+SELECT id, referrals FROM users WHERE jsonb_array_length(referrals) > 0 ORDER BY jsonb_array_length(referrals) DESC;
+
+СКОЛЬКО РЕФЕРАЛОВ У КАЖДОГО (топ-10)
+SELECT id, jsonb_array_length(referrals) as ref_count, balance FROM users WHERE jsonb_array_length(referrals) > 0 ORDER BY ref_count DESC LIMIT 10;
+
+НОВЫЕ ИГРОКИ ЗА 24 ЧАСА
+SELECT id, balance, created_at FROM users WHERE created_at > NOW() - INTERVAL '24 hours' ORDER BY created_at DESC;
+
+ИГРОКИ ЗА 7 ДНЕЙ (активность)
+SELECT COUNT(*) as novyh_za_nedelyu FROM users WHERE created_at > NOW() - INTERVAL '7 days';
+
+
+============================================
+💰 ЭКОНОМИКА ИГРЫ
+============================================
+
+ОБЩЕЕ КОЛИЧЕСТВО NC В ИГРЕ
+SELECT SUM(balance) as vsego_nc FROM users;
+
+СРЕДНИЙ БАЛАНС ИГРОКА
+SELECT ROUND(AVG(balance), 2) as sredniy_balans FROM users;
+
+САМЫЙ БОГАТЫЙ ИГРОК
+SELECT id, balance FROM users ORDER BY balance DESC LIMIT 1;
+
+СКОЛЬКО ЛОТОВ НА РЫНКЕ
+SELECT COUNT(*) as vsego_lotov FROM market_lots WHERE status = 'active';
+
+СУММА ВСЕХ ЛОТОВ (сколько NC в обороте)
+SELECT SUM(price) as summa_lotov FROM market_lots WHERE status = 'active';
+
+ОБЪЁМ ТОРГОВЛИ ЗА ВСЁ ВРЕМЯ
+SELECT COUNT(*) as sdelok, SUM(price) as oborot FROM market_history;
+
+ОБЪЁМ ТОРГОВЛИ ЗА 24 ЧАСА
+SELECT COUNT(*) as sdelok, SUM(price) as oborot FROM market_history WHERE sold_at > NOW() - INTERVAL '24 hours';
+
+
+============================================
+🔧 ОБСЛУЖИВАНИЕ
+============================================
+
+СНЯТЬ ВСЕ ЛОТЫ С РЫНКА (обнулить рынок)
+UPDATE market_lots SET status = 'deleted' WHERE status = 'active';
+
+ОТМЕНИТЬ ВСЕ АКТИВНЫЕ ЗАЯВКИ НА ОБМЕН
+UPDATE market_trades SET status = 'rejected' WHERE status = 'pending';
+
+СБРОСИТЬ ВСЕМ ПРОКРУТЫ ДО 50
+UPDATE users SET spins_free = 50;
+
+СБРОСИТЬ ВСЕМ ЕЖЕДНЕВНЫЙ БОНУС
+UPDATE users SET last_bonus_date = NULL;
+
+УДАЛИТЬ ПУСТЫХ ИГРОКОВ (0 NC, 0 номеров, 0 прокруток)
+DELETE FROM users WHERE balance = 0 AND jsonb_array_length(inventory) = 0 AND total_spins = 0;
+
+
+============================================
+📊 ОНЛАЙН И АКТИВНОСТЬ (Realtime)
+============================================
+
+СМОТРЕТЬ ОНЛАЙН:
+1. Supabase → Realtime → Reports → Connected Clients
+2. Или создать канал в коде игры
+
+ИГРОКИ С АКТИВНОСТЬЮ (те кто крутил)
+SELECT id, total_spins, balance FROM users WHERE total_spins > 0 ORDER BY total_spins DESC;
+
+МЁРТВЫЕ АККАУНТЫ (не играли)
+SELECT id, created_at FROM users WHERE total_spins = 0 ORDER BY created_at DESC;
+
+
+============================================
+⚠️ ПРАВИЛА
+============================================
+
+1. Сначала SELECT — потом меняй
+2. DELETE — навсегда, не отменить
+3. UPDATE без WHERE — меняет ВСЕХ
+4. Перед массовыми — бэкап (команда выше)
+5. Один игрок = один ID (tg_XXXXX)
+6. При массовых операциях — делай бэкап
+7. UPDATE market_lots без WHERE — снимает ВСЕ лоты
+8. Не удаляй users без бэкапа
+9. Проверяй результат SELECT после UPDATE
+10. Suspicious ratio > 10 = читер
